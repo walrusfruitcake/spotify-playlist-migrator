@@ -52,10 +52,7 @@ async function promptFor(key, message, isSecret=false) {
   a.message = message;
   a.addAction("OK");
   a.addCancelAction("Cancel");
-  const tf = new TextField();
-  tf.text = "";
-  tf.placeholder = isSecret ? "••••••" : "Enter value";
-  a.addTextField(tf);
+  isSecret ? a.addSecureTextField("Enter value") : a.addTextField("Enter value");
   const i = await a.presentAlert();
   if (i === -1) throw new Error("Setup cancelled.");
   return a.textFieldValue(0).trim();
@@ -214,7 +211,10 @@ async function httpPostForm(url, formObj, headers={}) {
   return await req.loadJSON();
 }
 function btoa(str){ return Data.fromString(str).toBase64String(); }
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+// Scriptable doesn’t expose setTimeout; use Timer to delay.
+function sleep(ms){
+  return new Promise((resolve) => Timer.schedule(ms / 1000, false, resolve));
+}
 async function messageBox(title, message) {
   const a = new Alert();
   a.title = title;
