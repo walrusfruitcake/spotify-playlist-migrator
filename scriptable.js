@@ -121,7 +121,7 @@ async function getSpotifyRefreshToken() {
   Safari.open(authUrl);
   await sleep(3000);
   const redirectFull = await promptFor("sp_redirect", "Paste the FULL redirected URL from Scriptable after Spotify login");
-  const code = new URL(redirectFull).searchParams.get("code");
+  const code = getQueryParam(redirectFull, "code");
   if (!code) throw new Error("No code found in redirected URL.");
 
   const clientSecret = store.get("sp_client_secret");
@@ -171,7 +171,7 @@ async function getGoogleRefreshToken() {
   Safari.open(authUrl);
   await sleep(3000);
   const redirectFull = await promptFor("g_redirect", "Paste the FULL redirected URL from Scriptable after Google login");
-  const code = new URL(redirectFull).searchParams.get("code");
+  const code = getQueryParam(redirectFull, "code");
   if (!code) throw new Error("No code found in redirected URL.");
 
   const clientSecret = store.get("g_client_secret");
@@ -214,6 +214,18 @@ function btoa(str){ return Data.fromString(str).toBase64String(); }
 // Scriptable doesn’t expose setTimeout; use Timer to delay.
 function sleep(ms){
   return new Promise((resolve) => Timer.schedule(ms / 1000, false, resolve));
+}
+// Scriptable lacks a global URL parser; minimal query extractor for OAuth redirects.
+function getQueryParam(url, name) {
+  const qIndex = url.indexOf("?");
+  if (qIndex === -1) return null;
+  const query = url.slice(qIndex + 1);
+  for (const part of query.split("&")) {
+    if (!part) continue;
+    const [k, v = ""] = part.split("=");
+    if (decodeURIComponent(k) === name) return decodeURIComponent(v.replace(/\+/g, " "));
+  }
+  return null;
 }
 async function messageBox(title, message) {
   const a = new Alert();
