@@ -164,13 +164,12 @@ async function getGoogleRefreshToken() {
 
   await messageBox(
     "Google/YouTube Auth",
-    "You'll be taken to Google to authorize YouTube access.\nAfter granting access, you'll land back in Scriptable with a URL — copy that URL and paste it in the next prompt."
+    "You'll be taken to Google to authorize YouTube access.\nAfter granting access, you'll end at a Google landing page with an Authorization code. Copy and paste it in the next prompt."
   );
   Safari.open(authUrl);
   await sleep(3000);
-  const redirectFull = await promptFor("g_redirect", "Paste the FULL redirected URL from Scriptable after Google login");
-  const code = getQueryParam(redirectFull, "code");
-  if (!code) throw new Error("No code found in redirected URL.");
+  const code = await promptFor("g_redirect", "Paste the Authorization code after Google login");
+  if (!code) throw new Error("No code provided");
 
   const clientSecret = store.get("g_client_secret");
   const tokenResp = await httpPostForm("https://oauth2.googleapis.com/token", {
