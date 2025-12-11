@@ -207,7 +207,7 @@ async function httpPostForm(url, formObj, headers={}) {
   Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "POST";
   req.headers["Content-Type"] = req.headers["Content-Type"] || "application/x-www-form-urlencoded";
-  req.body = new URLSearchParams(formObj).toString();
+  req.body = toFormUrlEncoded(formObj);
   return await req.loadJSON();
 }
 function btoa(str){ return Data.fromString(str).toBase64String(); }
@@ -226,6 +226,16 @@ function getQueryParam(url, name) {
     if (decodeURIComponent(k) === name) return decodeURIComponent(v.replace(/\+/g, " "));
   }
   return null;
+}
+// Scriptable lacks URLSearchParams; minimal x-www-form-urlencoded builder.
+function toFormUrlEncoded(obj) {
+  const parts = [];
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    const key = encodeURIComponent(k);
+    const val = v === undefined || v === null ? "" : encodeURIComponent(String(v));
+    parts.push(`${key}=${val}`);
+  });
+  return parts.join("&");
 }
 async function messageBox(title, message) {
   const a = new Alert();
