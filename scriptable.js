@@ -162,7 +162,7 @@ async function getGoogleRefreshToken() {
   if (rt) return rt;
 
   const clientId = store.get("g_client_id");
-  const redirectUri = "scriptable://callback";
+  const redirectUri = "urn:ietf:wg:oauth:2.0:oob";
   const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl");
   const authUrl =
     `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&access_type=offline&prompt=consent`;
