@@ -93,10 +93,9 @@ async function getSpotifyAccessToken() {
 
   const resp = await httpPostForm("https://accounts.spotify.com/api/token", {
     grant_type: "refresh_token",
-    refresh_token: refresh
-  }, {
-    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-    "Content-Type": "application/x-www-form-urlencoded"
+    refresh_token: refresh,
+    client_id: clientId,
+    client_secret: clientSecret
   });
   if (!resp.access_token) throw new Error("Spotify token refresh failed");
   return resp.access_token;
@@ -128,10 +127,9 @@ async function getSpotifyRefreshToken() {
   const tokenResp = await httpPostForm("https://accounts.spotify.com/api/token", {
     grant_type: "authorization_code",
     code,
-    redirect_uri: redirectUri
-  }, {
-    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-    "Content-Type": "application/x-www-form-urlencoded"
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    client_secret: clientSecret
   });
 
   if (!tokenResp.refresh_token) throw new Error("Failed to obtain Spotify refresh token.");
