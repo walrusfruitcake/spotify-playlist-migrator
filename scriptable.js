@@ -107,7 +107,7 @@ async function getSpotifyRefreshToken() {
   if (rt) return rt;
 
   const clientId = store.get("sp_client_id");
-  const redirectUri = "scriptable://callback"; // use custom scheme capture method
+  const redirectUri = "https://example.com/callback"; // use custom scheme capture method
   const scopes = encodeURIComponent("playlist-read-private playlist-read-collaborative");
   const authUrl =
     `https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}` +
