@@ -93,10 +93,9 @@ async function getSpotifyAccessToken() {
 
   const resp = await httpPostForm("https://accounts.spotify.com/api/token", {
     grant_type: "refresh_token",
-    refresh_token: refresh
-  }, {
-    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-    "Content-Type": "application/x-www-form-urlencoded"
+    refresh_token: refresh,
+    client_id: clientId,
+    client_secret: clientSecret
   });
   if (!resp.access_token) throw new Error("Spotify token refresh failed");
   return resp.access_token;
@@ -121,17 +120,16 @@ async function getSpotifyRefreshToken() {
   Safari.open(authUrl);
   await sleep(3000);
   const redirectFull = await promptFor("sp_redirect", "Paste the FULL redirected URL from Scriptable after Spotify login");
-  const code = new URL(redirectFull).searchParams.get("code");
+  const code = getQueryParam(redirectFull, "code");
   if (!code) throw new Error("No code found in redirected URL.");
 
   const clientSecret = store.get("sp_client_secret");
   const tokenResp = await httpPostForm("https://accounts.spotify.com/api/token", {
     grant_type: "authorization_code",
     code,
-    redirect_uri: redirectUri
-  }, {
-    Authorization: "Basic " + btoa(`${clientId}:${clientSecret}`),
-    "Content-Type": "application/x-www-form-urlencoded"
+    redirect_uri: redirectUri,
+    client_id: clientId,
+    client_secret: clientSecret
   });
 
   if (!tokenResp.refresh_token) throw new Error("Failed to obtain Spotify refresh token.");
@@ -171,7 +169,7 @@ async function getGoogleRefreshToken() {
   Safari.open(authUrl);
   await sleep(3000);
   const redirectFull = await promptFor("g_redirect", "Paste the FULL redirected URL from Scriptable after Google login");
-  const code = new URL(redirectFull).searchParams.get("code");
+  const code = getQueryParam(redirectFull, "code");
   if (!code) throw new Error("No code found in redirected URL.");
 
   const clientSecret = store.get("g_client_secret");
@@ -207,11 +205,36 @@ async function httpPostForm(url, formObj, headers={}) {
   Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "POST";
   req.headers["Content-Type"] = req.headers["Content-Type"] || "application/x-www-form-urlencoded";
-  req.body = new URLSearchParams(formObj).toString();
+  req.body = toFormUrlEncoded(formObj);
   return await req.loadJSON();
 }
 function btoa(str){ return Data.fromString(str).toBase64String(); }
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+// Scriptable doesn’t expose setTimeout; use Timer to delay.
+function sleep(ms){
+  return new Promise((resolve) => Timer.schedule(ms / 1000, false, resolve));
+}
+// Scriptable lacks a global URL parser; minimal query extractor for OAuth redirects.
+function getQueryParam(url, name) {
+  const qIndex = url.indexOf("?");
+  if (qIndex === -1) return null;
+  const query = url.slice(qIndex + 1);
+  for (const part of query.split("&")) {
+    if (!part) continue;
+    const [k, v = ""] = part.split("=");
+    if (decodeURIComponent(k) === name) return decodeURIComponent(v.replace(/\+/g, " "));
+  }
+  return null;
+}
+// Scriptable lacks URLSearchParams; minimal x-www-form-urlencoded builder.
+function toFormUrlEncoded(obj) {
+  const parts = [];
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    const key = encodeURIComponent(k);
+    const val = v === undefined || v === null ? "" : encodeURIComponent(String(v));
+    parts.push(`${key}=${val}`);
+  });
+  return parts.join("&");
+}
 async function messageBox(title, message) {
   const a = new Alert();
   a.title = title;
