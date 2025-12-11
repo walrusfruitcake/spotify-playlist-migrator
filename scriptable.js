@@ -96,6 +96,9 @@ async function getSpotifyAccessToken() {
     refresh_token: refresh,
     client_id: clientId,
     client_secret: clientSecret
+  }, {
+    // No Authorization header; just form fields
+    "Content-Type": "application/x-www-form-urlencoded"
   });
   if (!resp.access_token) throw new Error("Spotify token refresh failed");
   return resp.access_token;
@@ -130,6 +133,9 @@ async function getSpotifyRefreshToken() {
     redirect_uri: redirectUri,
     client_id: clientId,
     client_secret: clientSecret
+  }, {
+    // No Authorization header; just form fields
+    "Content-Type": "application/x-www-form-urlencoded"
   });
 
   if (!tokenResp.refresh_token) throw new Error("Failed to obtain Spotify refresh token.");
