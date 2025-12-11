@@ -52,10 +52,7 @@ async function promptFor(key, message, isSecret=false) {
   a.message = message;
   a.addAction("OK");
   a.addCancelAction("Cancel");
-  const tf = new TextField();
-  tf.text = "";
-  tf.placeholder = isSecret ? "••••••" : "Enter value";
-  a.addTextField(tf);
+  isSecret ? a.addSecureTextField("Enter value") : a.addTextField("Enter value");
   const i = await a.presentAlert();
   if (i === -1) throw new Error("Setup cancelled.");
   return a.textFieldValue(0).trim();
