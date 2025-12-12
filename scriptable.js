@@ -86,6 +86,60 @@ async function ensureSecrets() {
   }
 }
 
+/*** ==== Spotify: playlists list & selection ==== ***/
+async function getSpotifyPlaylists(spAccessToken, limit=50) {
+  let url = `https://api.spotify.com/v1/me/playlists?limit=${limit}`;
+  const playlists = [];
+  while (url) {
+    const page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+    for (const it of page.items || []) {
+      playlists.push({
+        id: it.id,
+        name: it.name,
+        owner: it.owner?.display_name || "",
+        tracks: it.tracks?.total || 0
+      });
+    }
+    url = page.next;
+  }
+  return playlists;
+}
+
+async function pickSpotifyPlaylist(playlists) {
+  if (!playlists.length) return null;
+
+  return await new Promise((resolve) => {
+    const table = new UITable();
+    table.showSeparators = true;
+
+    const header = new UITableRow();
+    header.isHeader = true;
+    header.addText("Select a Spotify playlist", "Tap to sync to YouTube");
+    header.dismissOnSelect = false;
+    table.addRow(header);
+
+    playlists.forEach((pl) => {
+      const row = new UITableRow();
+      row.dismissOnSelect = true;
+      row.onSelect = () => resolve(pl);
+
+      const main = row.addText(pl.name, `${pl.tracks} tracks${pl.owner ? ` • ${pl.owner}` : ""}`);
+      main.widthWeight = 1;
+
+      table.addRow(row);
+    });
+
+    const cancelRow = new UITableRow();
+    cancelRow.dismissOnSelect = true;
+    cancelRow.onSelect = () => resolve(null);
+    cancelRow.addText("Cancel", "Back out without syncing");
+    cancelRow.backgroundColor = new Color("#f2f2f2");
+    table.addRow(cancelRow);
+
+    table.present();
+  });
+}
+
 async function getSpotifyAccessToken() {
   const refresh = await getSpotifyRefreshToken();
   const clientId = store.get("sp_client_id");
@@ -361,7 +415,13 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
     const spToken = await getSpotifyAccessToken();
     const ytToken = await getGoogleAccessToken();
 
-    const tracks = await getSpotifyPlaylistTracks(spToken, CONFIG.SPOTIFY_SOURCE_PLAYLIST_ID);
+    const playlists = await getSpotifyPlaylists(spToken);
+    if (!playlists.length) { await messageBox("No playlists", "No Spotify playlists found for this user."); return; }
+
+    const selected = await pickSpotifyPlaylist(playlists);
+    if (!selected) { await messageBox("Cancelled", "No playlist selected."); return; }
+
+    const tracks = await getSpotifyPlaylistTracks(spToken, selected.id);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
 
     const ytPlaylistId = await ensureYouTubePlaylist(ytToken, CONFIG.YOUTUBE_TARGET_PLAYLIST_TITLE);
