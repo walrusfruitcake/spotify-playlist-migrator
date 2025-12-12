@@ -15,9 +15,6 @@
 
 /*** ==== CONFIG (edit these) ==== ***/
 const CONFIG = {
-  SPOTIFY_SOURCE_PLAYLIST_ID: "YOUR_SPOTIFY_PLAYLIST_ID",  // e.g. 37i9dQZF1DXcBWIGoYBM5M
-  YOUTUBE_TARGET_PLAYLIST_TITLE: "My Spotify → YouTube Sync",
-
   // If you already know your client IDs/secrets, you can paste them here; otherwise you'll be prompted once.
   SPOTIFY_CLIENT_ID: "",
   SPOTIFY_CLIENT_SECRET: "",
@@ -27,7 +24,7 @@ const CONFIG = {
   // Tune search matching
   MAX_TRACKS: 500,               // safety cap
   YT_SEARCH_MAX_RESULTS: 5,      // try a few candidates for better matching
-  DRY_RUN: false                 // true: log what would happen, don’t write to YouTube
+  DRY_RUN: true                 // true: log what would happen, don’t write to YouTube
 };
 /*** ==== END CONFIG ==== ***/
 
@@ -246,18 +243,54 @@ async function getGoogleRefreshToken() {
 }
 
 /*** ==== HTTP helpers ==== ***/
-async function httpGet(url, headers={}) {
+async function httpGet(url, headers = {}) {
   const req = new Request(url);
-  Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "GET";
-  return await req.loadJSON();
+  req.headers = headers;
+  try {
+    const json = await req.loadJSON();
+    console.log(`GET ${url}`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+//     console.log(`→ body: ${JSON.stringify(json)}`);
+    return json;
+  } catch (e) {
+    console.log(`GET ${url} FAILED`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    try {
+      const txt = await req.loadString();
+      console.log(`→ raw body: ${txt}`);
+    } catch (_) {}
+    throw e;
+  }
 }
-async function httpPost(url, body, headers={}) {
+async function httpPost(url, body, headers = {}) {
   const req = new Request(url);
-  Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "POST";
-  req.body = body ? JSON.stringify(body) : null;
-  return await req.loadJSON();
+  req.headers = headers || {};
+
+  if (body != null) {
+    // Assume JSON for this helper
+    if (!req.headers["Content-Type"]) {
+      req.headers["Content-Type"] = "application/json";
+    }
+    req.body = typeof body === "string" ? body : JSON.stringify(body);
+  }
+
+  try {
+    const json = await req.loadJSON();
+    console.log(`POST ${url}`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    console.log(`→ body: ${JSON.stringify(json)}`);
+    return json;
+  } catch (e) {
+    console.log(`POST ${url} FAILED`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    try {
+      const txt = await req.loadString();
+      console.log(`→ raw body: ${txt}`);
+    } catch (_) {}
+    throw e;
+  }
 }
 async function httpPostForm(url, formObj, headers={}) {
   const req = new Request(url);
@@ -302,14 +335,28 @@ async function messageBox(title, message) {
   await a.presentAlert();
 }
 
+async function getSpotifyPlaylistTitle(spAccessToken, playlistId) {
+  let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}`;
+  let playlist = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+  if (playlist && playlist.name) {
+    return playlist.name
+  } else {
+    console.log(playlist)
+    throw new Error("Could not get playlist info")
+  }
+}
+
 /*** ==== Spotify: read tracks from a playlist ==== ***/
 async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}`;
-  const items = [];
+  let items = [];
+  // let page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+  // console.log(page.items.length)
   while (url && items.length < CONFIG.MAX_TRACKS) {
     const page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
     for (const it of page.items || []) {
       if (it.track && it.track.name && it.track.artists?.length) {
+        console.log(it.track.name)
         items.push({
           name: it.track.name,
           artists: it.track.artists.map(a=>a.name),
@@ -322,6 +369,20 @@ async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   return items;
 }
 
+async function shouldPlaylistUpdate(playlistTitle) {
+  const a = new Alert()
+  a.title = "Playlist found"
+  a.message = `Choose whether to update playlist: ${playlistTitle}`
+  a.addAction("Update")   // 0
+  a.addAction("Create New") // 1
+  // TODO add Replace destructive action && enums to handle multiple options
+  a.addCancelAction("Skip") // -1
+  const idx = await a.present()
+  if (idx === 0) return true
+  if (idx === 1) return false
+  throw new Error(`user requested we skip playlist: ${playlistTitle}`)
+}
+
 /*** ==== YouTube: find/create playlist, add items ==== ***/
 async function ensureYouTubePlaylist(ytAccessToken, title) {
   // Try to find existing by title
@@ -329,7 +390,8 @@ async function ensureYouTubePlaylist(ytAccessToken, title) {
     Authorization: `Bearer ${ytAccessToken}`
   });
   const found = (listResp.items||[]).find(p => (p.snippet?.title||"").toLowerCase() === title.toLowerCase());
-  if (found) return found.id;
+  if (found && await shouldPlaylistUpdate(title)) // else creating new
+    return found.id;
 
   if (CONFIG.DRY_RUN) return "DRY_RUN_PLAYLIST_ID";
 
@@ -424,7 +486,7 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
     const tracks = await getSpotifyPlaylistTracks(spToken, selected.id);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
 
-    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, CONFIG.YOUTUBE_TARGET_PLAYLIST_TITLE);
+    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, selected.name);
 
     const existing = ytPlaylistId === "DRY_RUN_PLAYLIST_ID"
       ? new Set()
