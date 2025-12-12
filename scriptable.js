@@ -317,6 +317,20 @@ async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   return items;
 }
 
+async function shouldPlaylistUpdate(playlistTitle) {
+  const a = new Alert()
+  a.title = "Playlist found"
+  a.message = `Choose whether to update playlist: ${playlistTitle}`
+  a.addAction("Update")   // 0
+  a.addAction("Create New") // 1
+  // TODO add Replace destructive action && enums to handle multiple options
+  a.addCancelAction("Skip") // -1
+  const idx = await a.present()
+  if (idx === 0) return true
+  if (idx === 1) return false
+  throw new Error(`user requested we skip playlist: ${playlistTitle}`)
+}
+
 /*** ==== YouTube: find/create playlist, add items ==== ***/
 async function ensureYouTubePlaylist(ytAccessToken, title) {
   // Try to find existing by title
@@ -324,7 +338,8 @@ async function ensureYouTubePlaylist(ytAccessToken, title) {
     Authorization: `Bearer ${ytAccessToken}`
   });
   const found = (listResp.items||[]).find(p => (p.snippet?.title||"").toLowerCase() === title.toLowerCase());
-  if (found) return found.id;
+  if (found && await shouldPlaylistUpdate(title)) // else creating new
+    return found.id;
 
   if (CONFIG.DRY_RUN) return "DRY_RUN_PLAYLIST_ID";
 
