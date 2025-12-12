@@ -105,6 +105,10 @@ async function getSpotifyPlaylists(spAccessToken, limit=50) {
 async function pickSpotifyPlaylist(playlists) {
   if (!playlists.length) return null;
 
+  const sortedPlaylists = [...playlists].sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
+  );
+
   return await new Promise((resolve) => {
     const table = new UITable();
     table.showSeparators = true;
@@ -115,7 +119,7 @@ async function pickSpotifyPlaylist(playlists) {
     header.dismissOnSelect = false;
     table.addRow(header);
 
-    playlists.forEach((pl) => {
+    sortedPlaylists.forEach((pl) => {
       const row = new UITableRow();
       row.dismissOnSelect = true;
       row.onSelect = () => resolve(pl);
