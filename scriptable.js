@@ -15,7 +15,7 @@
 
 /*** ==== CONFIG (edit these) ==== ***/
 const CONFIG = {
-  SPOTIFY_SOURCE_PLAYLIST_ID: "YOUR_SPOTIFY_PLAYLIST_ID",  // e.g. 37i9dQZF1DXcBWIGoYBM5M
+  SPOTIFY_SOURCE_PLAYLIST_ID: "66JxHWzX7TLViQxHbBhChm",  // e.g. 37i9dQZF1DXcBWIGoYBM5M
   YOUTUBE_TARGET_PLAYLIST_TITLE: "My Spotify → YouTube Sync",
 
   // If you already know your client IDs/secrets, you can paste them here; otherwise you'll be prompted once.
@@ -192,11 +192,25 @@ async function getGoogleRefreshToken() {
 }
 
 /*** ==== HTTP helpers ==== ***/
-async function httpGet(url, headers={}) {
+async function httpGet(url, headers = {}) {
   const req = new Request(url);
-  Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "GET";
-  return await req.loadJSON();
+  req.headers = headers;
+  try {
+    const json = await req.loadJSON();
+    console.log(`GET ${url}`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+//     console.log(`→ body: ${JSON.stringify(json)}`);
+    return json;
+  } catch (e) {
+    console.log(`GET ${url} FAILED`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    try {
+      const txt = await req.loadString();
+      console.log(`→ raw body: ${txt}`);
+    } catch (_) {}
+    throw e;
+  }
 }
 async function httpPost(url, body, headers={}) {
   const req = new Request(url);
@@ -251,8 +265,12 @@ async function messageBox(title, message) {
 /*** ==== Spotify: read tracks from a playlist ==== ***/
 async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}`;
-  const items = [];
+  let items = [];
+  let page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+  console.log(page.items.length)
+//   console.log("************************", JSON.stringify(page))
   while (url && items.length < CONFIG.MAX_TRACKS) {
+//   while(false) {
     const page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
     for (const it of page.items || []) {
       if (it.track && it.track.name && it.track.artists?.length) {
