@@ -335,17 +335,6 @@ async function messageBox(title, message) {
   await a.presentAlert();
 }
 
-async function getSpotifyPlaylistTitle(spAccessToken, playlistId) {
-  let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}`;
-  let playlist = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
-  if (playlist && playlist.name) {
-    return playlist.name
-  } else {
-    console.log(playlist)
-    throw new Error("Could not get playlist info")
-  }
-}
-
 /*** ==== Spotify: read tracks from a playlist ==== ***/
 async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}`;
