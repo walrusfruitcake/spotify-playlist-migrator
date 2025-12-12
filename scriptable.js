@@ -486,10 +486,15 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
       : await getYouTubePlaylistVideoIds(ytToken, ytPlaylistId);
 
     let added = 0, skipped = 0, failed = 0;
+    const missingTracks = [];
     for (const track of tracks) {
       const q = buildSearchQuery(track);
       const vid = await searchYouTubeBestMatch(ytToken, q);
-      if (!vid) { failed++; continue; }
+      if (!vid) {
+        failed++;
+        missingTracks.push(`- ${track.name} — ${track.artists.join(", ")}${track.album ? ` (${track.album})` : ""}`);
+        continue;
+      }
       if (existing.has(vid)) { skipped++; continue; }
       if (!CONFIG.DRY_RUN) {
         try {
@@ -500,6 +505,10 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
       } else {
         added++;
       }
+    }
+
+    if (missingTracks.length) {
+      console.log("Missing YouTube matches (logged at end of sync):\n" + missingTracks.join("\n"));
     }
 
     await messageBox("Sync complete",
