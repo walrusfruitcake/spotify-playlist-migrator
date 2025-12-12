@@ -212,12 +212,34 @@ async function httpGet(url, headers = {}) {
     throw e;
   }
 }
-async function httpPost(url, body, headers={}) {
+async function httpPost(url, body, headers = {}) {
   const req = new Request(url);
-  Object.entries(headers).forEach(([k,v]) => req.headers[k] = v);
   req.method = "POST";
-  req.body = body ? JSON.stringify(body) : null;
-  return await req.loadJSON();
+  req.headers = headers || {};
+
+  if (body != null) {
+    // Assume JSON for this helper
+    if (!req.headers["Content-Type"]) {
+      req.headers["Content-Type"] = "application/json";
+    }
+    req.body = typeof body === "string" ? body : JSON.stringify(body);
+  }
+
+  try {
+    const json = await req.loadJSON();
+    console.log(`POST ${url}`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    console.log(`→ body: ${JSON.stringify(json)}`);
+    return json;
+  } catch (e) {
+    console.log(`POST ${url} FAILED`);
+    console.log(`→ status: ${req.response?.statusCode}`);
+    try {
+      const txt = await req.loadString();
+      console.log(`→ raw body: ${txt}`);
+    } catch (_) {}
+    throw e;
+  }
 }
 async function httpPostForm(url, formObj, headers={}) {
   const req = new Request(url);
@@ -274,6 +296,7 @@ async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
     const page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
     for (const it of page.items || []) {
       if (it.track && it.track.name && it.track.artists?.length) {
+        console.log(it.track.name)
         items.push({
           name: it.track.name,
           artists: it.track.artists.map(a=>a.name),
@@ -381,7 +404,7 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
 
     const tracks = await getSpotifyPlaylistTracks(spToken, CONFIG.SPOTIFY_SOURCE_PLAYLIST_ID);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
-
+    
     const ytPlaylistId = await ensureYouTubePlaylist(ytToken, CONFIG.YOUTUBE_TARGET_PLAYLIST_TITLE);
 
     const existing = ytPlaylistId === "DRY_RUN_PLAYLIST_ID"
