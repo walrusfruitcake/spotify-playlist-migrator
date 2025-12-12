@@ -16,7 +16,6 @@
 /*** ==== CONFIG (edit these) ==== ***/
 const CONFIG = {
   SPOTIFY_SOURCE_PLAYLIST_ID: "66JxHWzX7TLViQxHbBhChm",  // e.g. 37i9dQZF1DXcBWIGoYBM5M
-  YOUTUBE_TARGET_PLAYLIST_TITLE: "My Spotify → YouTube Sync",
 
   // If you already know your client IDs/secrets, you can paste them here; otherwise you'll be prompted once.
   SPOTIFY_CLIENT_ID: "",
@@ -27,7 +26,7 @@ const CONFIG = {
   // Tune search matching
   MAX_TRACKS: 500,               // safety cap
   YT_SEARCH_MAX_RESULTS: 5,      // try a few candidates for better matching
-  DRY_RUN: false                 // true: log what would happen, don’t write to YouTube
+  DRY_RUN: true                 // true: log what would happen, don’t write to YouTube
 };
 /*** ==== END CONFIG ==== ***/
 
@@ -284,7 +283,7 @@ async function messageBox(title, message) {
   await a.presentAlert();
 }
 
-async function getSpotifyPlaylistTitle(spAccessToken, playlistId, limit=100) {
+async function getSpotifyPlaylistTitle(spAccessToken, playlistId) {
   let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}`;
   let playlist = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
   if (playlist && playlist.name) {
@@ -411,10 +410,11 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
     const spToken = await getSpotifyAccessToken();
     const ytToken = await getGoogleAccessToken();
 
+    const playlistTitle = await getSpotifyPlaylistTitle(spToken, CONFIG.SPOTIFY_SOURCE_PLAYLIST_ID);
     const tracks = await getSpotifyPlaylistTracks(spToken, CONFIG.SPOTIFY_SOURCE_PLAYLIST_ID);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
 
-    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, CONFIG.YOUTUBE_TARGET_PLAYLIST_TITLE);
+    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, playlistTitle);
 
     const existing = ytPlaylistId === "DRY_RUN_PLAYLIST_ID"
       ? new Set()
