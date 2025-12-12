@@ -377,12 +377,9 @@ async function shouldPlaylistUpdate(playlistTitle) {
 }
 
 /*** ==== YouTube: find/create playlist, add items ==== ***/
-async function ensureYouTubePlaylist(ytAccessToken, title) {
-  // Try to find existing by title
-  const listResp = await httpGet("https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50", {
-    Authorization: `Bearer ${ytAccessToken}`
-  });
-  const found = (listResp.items||[]).find(p => (p.snippet?.title||"").toLowerCase() === title.toLowerCase());
+async function ensureYouTubePlaylist(ytAccessToken, title, existingPlaylists=null) {
+  const playlists = existingPlaylists || await listYouTubePlaylists(ytAccessToken);
+  const found = playlists.find(p => (p.snippet?.title||"").toLowerCase() === title.toLowerCase());
   if (found && await shouldPlaylistUpdate(title)) // else creating new
     return found.id;
 
@@ -396,6 +393,21 @@ async function ensureYouTubePlaylist(ytAccessToken, title) {
 
   if (!createResp.id) throw new Error("Failed to create YouTube playlist.");
   return createResp.id;
+}
+
+async function listYouTubePlaylists(ytAccessToken) {
+  const playlists = [];
+  let pageToken = "";
+
+  do {
+    const url = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&mine=true&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    const resp = await httpGet(url, { Authorization: `Bearer ${ytAccessToken}` });
+
+    (resp.items || []).forEach((item) => playlists.push(item));
+    pageToken = resp.nextPageToken;
+  } while (pageToken);
+
+  return playlists;
 }
 
 async function getYouTubePlaylistVideoIds(ytAccessToken, playlistId) {
@@ -473,13 +485,21 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
     const playlists = await getSpotifyPlaylists(spToken);
     if (!playlists.length) { await messageBox("No playlists", "No Spotify playlists found for this user."); return; }
 
-    const selected = await pickSpotifyPlaylist(playlists);
+    const existingYouTubePlaylists = await listYouTubePlaylists(ytToken);
+    const selectablePlaylists = playlists.filter((pl) =>
+      !existingYouTubePlaylists.some((ytPl) =>
+        (ytPl.snippet?.title || "").localeCompare(pl.name || "", undefined, { sensitivity: "base" }) === 0
+      )
+    );
+    if (!selectablePlaylists.length) { await messageBox("No playlists to sync", "All Spotify playlists already exist on YouTube."); return; }
+
+    const selected = await pickSpotifyPlaylist(selectablePlaylists);
     if (!selected) { await messageBox("Cancelled", "No playlist selected."); return; }
 
     const tracks = await getSpotifyPlaylistTracks(spToken, selected.id);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
 
-    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, selected.name);
+    const ytPlaylistId = await ensureYouTubePlaylist(ytToken, selected.name, existingYouTubePlaylists);
 
     const existing = ytPlaylistId === "DRY_RUN_PLAYLIST_ID"
       ? new Set()
