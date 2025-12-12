@@ -284,15 +284,24 @@ async function messageBox(title, message) {
   await a.presentAlert();
 }
 
+async function getSpotifyPlaylistTitle(spAccessToken, playlistId, limit=100) {
+  let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}`;
+  let playlist = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+  if (playlist && playlist.name) {
+    return playlist.name
+  } else {
+    console.log(playlist)
+    throw new Error("Could not get playlist info")
+  }
+}
+
 /*** ==== Spotify: read tracks from a playlist ==== ***/
 async function getSpotifyPlaylistTracks(spAccessToken, playlistId, limit=100) {
   let url = `https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/tracks?limit=${limit}`;
   let items = [];
-  let page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
-  console.log(page.items.length)
-//   console.log("************************", JSON.stringify(page))
+  // let page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
+  // console.log(page.items.length)
   while (url && items.length < CONFIG.MAX_TRACKS) {
-//   while(false) {
     const page = await httpGet(url, { Authorization: `Bearer ${spAccessToken}` });
     for (const it of page.items || []) {
       if (it.track && it.track.name && it.track.artists?.length) {
@@ -404,7 +413,7 @@ async function addToYouTubePlaylist(ytAccessToken, playlistId, videoId) {
 
     const tracks = await getSpotifyPlaylistTracks(spToken, CONFIG.SPOTIFY_SOURCE_PLAYLIST_ID);
     if (!tracks.length) { await messageBox("Done", "No tracks found in the Spotify playlist."); return; }
-    
+
     const ytPlaylistId = await ensureYouTubePlaylist(ytToken, CONFIG.YOUTUBE_TARGET_PLAYLIST_TITLE);
 
     const existing = ytPlaylistId === "DRY_RUN_PLAYLIST_ID"
